@@ -1,3 +1,9 @@
+---
+layout: default
+title: Architecture
+nav_order: 2
+---
+
 # Qavo — Reference Application Architecture
 
 > **Qavo** — *the foundation your applications stand on.*

@@ -1,3 +1,9 @@
+---
+layout: default
+title: Contributing
+nav_order: 3
+---
+
 # Contributing to Qavo
 
 Thank you for your interest in contributing to Qavo. This guide explains how to participate effectively and what is expected of contributors.

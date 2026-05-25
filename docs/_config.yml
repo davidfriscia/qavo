@@ -1,0 +1,73 @@
+title: Qavo
+description: "The foundation your applications stand on."
+url: "https://qavo.org"
+baseurl: ""
+
+# Theme
+remote_theme: just-the-docs/just-the-docs@v0.10.0
+
+# Color scheme: "light" or "dark"
+color_scheme: light
+
+# Logo (optional — add a logo.png in docs/assets/images/ and uncomment)
+# logo: "/assets/images/logo.png"
+
+# Favicon (optional — add a favicon.ico in docs/assets/ and uncomment)
+# favicon_ico: "/assets/favicon.ico"
+
+# Navigation
+nav_enabled: true
+nav_sort: order  # sort pages by the 'nav_order' front matter field
+
+# Search
+search_enabled: true
+search:
+  heading_level: 2
+  previews: 3
+  preview_words_before: 5
+  preview_words_after: 10
+  tokenizer_separator: /[\s\-/]+/
+  rel_url: true
+  button: false
+
+# Footer
+footer_content: "Copyright &copy; 2026 David Friscia. Released under the <a href=\"https://opensource.org/licenses/MIT\">MIT License</a>."
+
+# Back to top
+back_to_top: true
+back_to_top_text: "Back to top"
+
+# Last edit timestamp
+last_edit_timestamp: true
+last_edit_time_format: "%B %e, %Y"
+
+# GitHub repository link (shown in header)
+gh_edit_link: true
+gh_edit_link_text: "Edit this page on GitHub"
+gh_edit_repository: "https://github.com/davidfriscia/qavo"
+gh_edit_branch: "main"
+gh_edit_source: docs
+gh_edit_view_mode: "edit"
+
+# Callouts (styled blockquotes for notes/warnings)
+callouts_level: quiet
+callouts:
+  highlight:
+    color: yellow
+  important:
+    title: Important
+    color: blue
+  new:
+    title: New
+    color: green
+  note:
+    title: Note
+    color: purple
+  warning:
+    title: Warning
+    color: red
+
+# Plugins (GitHub Pages safe list)
+plugins:
+  - jekyll-seo-tag
+  - jekyll-sitemap
