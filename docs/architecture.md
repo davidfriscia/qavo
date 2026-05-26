@@ -13,7 +13,7 @@ nav_order: 2
 **Distribution:** Open source, hosted on GitHub, publicly published artifacts
 **UI approach:** Mobile-first, responsive across all devices (mobile, tablet, desktop)
 **Development:** Designed and built with the assistance of artificial intelligence (see §12)
-**Document version:** 1.2
+**Document version:** 1.3
 **Date:** May 2026
 
 ---
@@ -24,7 +24,7 @@ This document defines the reference architecture for **Qavo**, a platform for bu
 
 The name *Qavo* is a coined, deliberately distinctive word chosen for being short, easy to pronounce, and free of collisions across package registries and product names. It carries no prior meaning to compete with — the platform gives it its meaning.
 
-Seven principles drive every choice that follows.
+Eight principles drive every choice that follows.
 
 **Centralization of cross-cutting concerns.** Everything common to multiple applications — security, error handling, logging, validation, theming, response formats — lives in shared components and is never reimplemented in each application. A fix or an improvement propagates to all applications through a version update.
 
@@ -37,6 +37,8 @@ Seven principles drive every choice that follows.
 **Clean layer separation.** Each responsibility has its place. Presentation, application, domain, and data-access logic stay decoupled, so that each can evolve and be tested in isolation.
 
 **Mobile-first, responsive everywhere.** The user interface is designed mobile-first: layouts, components, and interactions are conceived for the smallest screens first, then progressively enhanced for larger ones. The same application renders correctly and ergonomically across all device classes — phones, tablets, and desktops — from a single codebase, with no separate "mobile version". This is detailed in §5.8.
+
+**Secure by default.** Security is not a plugin or an opt-in concern — it is a foundational property of every Qavo-based application. Secure HTTP headers, input sanitization, TLS awareness, and resilient communication patterns are active from the first line of configuration, not added later. This principle is detailed throughout §5.5 and §5.9.
 
 **Long-term maintainability.** The architecture favors mature technologies with long-term support (LTS), a stable ecosystem, and a slow obsolescence curve, because code written today must still be maintainable five years from now.
 
@@ -68,6 +70,8 @@ The decisive element for this architecture is the **Spring Boot Starter** patter
 | Validation | Bean Validation (Jakarta Validation / Hibernate Validator) | Declarative annotations |
 | DTO mapping | MapStruct | Compile-time entity ↔ DTO mapping |
 | API documentation | springdoc-openapi | Automatic OpenAPI 3 / Swagger UI generation |
+| Resilience | Resilience4j | Retry, timeout, circuit breaker — enforced in core (see §5.9) |
+| Feature flags | `@ConditionalOnProperty` + Qavo convention | Runtime enable/disable of features without rebuild (see §5.6) |
 | Conditional wiring | Spring Boot auto-configuration | `@ConditionalOnClass` / `@ConditionalOnProperty` drive the plugin model |
 | Build | Maven (or Gradle) | Maven recommended for BOM management |
 | Testing | JUnit 5, Mockito, Testcontainers | Integration tests with a real DB in a container |
@@ -113,19 +117,19 @@ The Spring + Angular combination is not accidental: they share a mental model (D
 The core of the architecture is the distinction between **Platform** (Qavo) and **Applications**.
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                          QAVO                                 │
-│              (versioned, evolves independently)               │
-│                                                               │
-│   Backend (info.dfri.qavo)        Frontend (@qavo)        │
-│   ┌──────────────────┐             ┌──────────────────┐       │
-│   │ qavo-core      │             │ @qavo/core     │       │
-│   │ qavo-security  │             │ @qavo/ui       │       │
-│   │ qavo-theming   │             │ @qavo/theming  │       │
-│   │ qavo-bom       │             │ @qavo/http     │       │
-│   │  + plugins ...   │             │  + plugins ...   │       │
-│   └──────────────────┘             └──────────────────┘       │
-└───────────────┬─────────────────────────────┬─────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│                          QAVO                                  │
+│              (versioned, evolves independently)                │
+│                                                                │
+│   Backend (org.qavo)              Frontend (@qavo)             │
+│   ┌──────────────────┐             ┌──────────────────┐        │
+│   │ qavo-core        │             │ @qavo/core       │        │
+│   │ qavo-security    │             │ @qavo/ui         │        │
+│   │ qavo-theming     │             │ @qavo/theming    │        │
+│   │ qavo-bom         │             │ @qavo/http       │        │
+│   │  + plugins ...   │             │  + plugins ...   │        │
+│   └──────────────────┘             └──────────────────┘        │
+└───────────────┬──────────────────────────────┬─────────────────┘
                 │   referenced by version      │
    ┌────────────┼──────────────┐    ┌──────────┼──────────────┐
    ▼            ▼              ▼    ▼          ▼              ▼
@@ -143,7 +147,7 @@ The core of the architecture is the distinction between **Platform** (Qavo) and 
 **Naming and coordinates:**
 
 - Source repositories: `qavo-be` and `qavo-fe` on GitHub.
-- Backend artifacts: Maven Central, groupId `info.dfri.qavo` (e.g. `qavo-bom`, `qavo-core`, `qavo-starter-web`, `qavo-auth-login`).
+- Backend artifacts: Maven Central, groupId `org.qavo` (e.g. `qavo-bom`, `qavo-core`, `qavo-starter-web`, `qavo-auth-login`).
 - Frontend artifacts: public npm registry, scope `@qavo` (e.g. `@qavo/core`, `@qavo/ui`, `@qavo/theming`, `@qavo/auth-login`).
 
 ### 3.1 Open source distribution
@@ -151,7 +155,7 @@ The core of the architecture is the distinction between **Platform** (Qavo) and 
 Qavo is open source, versioned on **GitHub**, with artifacts published to public repositories so that they are freely accessible.
 
 - **Source code:** public GitHub repositories (`qavo-be`, `qavo-fe`). They host the code, the issue tracker, the documentation, and the releases.
-- **Backend artifacts:** published to **Maven Central** (via the Sonatype/Central publishing workflow). Public release requires a verified `groupId` (`info.dfri.qavo`, verified against the `dfri.info` domain via a DNS TXT record), GPG-signed artifacts, and the metadata mandated by Central (sources JAR, Javadoc JAR, license, SCM links). Once published, a version is immutable and globally available without authentication.
+- **Backend artifacts:** published to **Maven Central** (via the Sonatype/Central publishing workflow). Public release requires a verified `groupId` (`org.qavo`, verified against the `qavo.org` domain via a DNS TXT record), GPG-signed artifacts, and the metadata mandated by Central (sources JAR, Javadoc JAR, license, SCM links). Once published, a version is immutable and globally available without authentication.
 - **Frontend artifacts:** published to the **public npm registry** under the `@qavo` scope. Public packages are installable by anyone with no authentication.
 - **Container images (optional):** the reference application and any tooling images can be published to a public registry such as GitHub Container Registry (GHCR).
 
@@ -178,26 +182,26 @@ Each MAJOR version retains support for a defined period even after the next one 
 Each backend application follows a clean stratification. Qavo provides the cross-cutting foundations; the application fills the layers with its own logic.
 
 ```
-┌────────────────────────────────────────────────────────┐
+┌──────────────────────────────────────────────────────────┐
 │  PRESENTATION LAYER  (REST Controllers)                  │
 │  - Exposes endpoints, receives DTOs, returns DTOs        │
 │  - No business logic                                     │
-├────────────────────────────────────────────────────────┤
+├──────────────────────────────────────────────────────────┤
 │  APPLICATION LAYER  (Services)                           │
 │  - Use-case orchestration, transactions                  │
 │  - Coordinates domain and infrastructure                 │
-├────────────────────────────────────────────────────────┤
+├──────────────────────────────────────────────────────────┤
 │  DOMAIN LAYER  (Entities, Value Objects, rules)          │
 │  - Domain model and business invariants                  │
 │  - Independent of frameworks and persistence             │
-├────────────────────────────────────────────────────────┤
+├──────────────────────────────────────────────────────────┤
 │  INFRASTRUCTURE LAYER  (Repositories, external clients)  │
 │  - DB access, external services, messaging               │
-└────────────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────────┘
         ▲
         │ cross-cutting across all layers
-┌───────┴────────────────────────────────────────────────┐
-│  CROSS-CUTTING (provided by Qavo core + plugins)       │
+┌───────┴──────────────────────────────────────────────────┐
+│  CROSS-CUTTING (provided by Qavo core + plugins)         │
 │  Security · Errors · Logging · Validation · Theming ·... │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -228,6 +232,8 @@ This is the central section: each common concern is handled once in Qavo and inh
 
 **Frontend.** Qavo provides an Angular routing skeleton with: standard route guards for authentication and authorization (see §5.5), feature/module lazy-loading handling, a fallback route for not-found pages, and centralized page-title management. The application adds its own routes by nesting them into the skeleton. Plugins expose their routes as lazy-loadable Angular routes that the application mounts where it wants.
 
+**API versioning strategy.** All Qavo-based APIs adopt path-based versioning as the enforced convention: the version segment is part of the URL (`/api/v{n}/resource`), never in a header or query parameter. The current version prefix (e.g. `/api/v1`) is configured once in the core and inherited by all controllers. When a version is deprecated, the core injects standard HTTP deprecation signals — the `Deprecation` and `Sunset` headers (RFC 8594) — so clients have machine-readable notice before removal. Breaking changes always require a MAJOR version bump both in the API path and in the Qavo artifact version, keeping the two versioning axes aligned. This prevents "API sprawl" across applications and makes the contract visible at a glance in every request.
+
 ### 5.2 Error handling
 
 The goal is for **every application to return errors in the same format**, handled in a single place.
@@ -255,7 +261,11 @@ Qavo also defines a base exception hierarchy (e.g. `BusinessException`, `Resourc
 
 ### 5.3 Logging and observability
 
-**Backend.** Qavo configures structured logging (JSON format) via SLF4J/Logback, automatically enriched with an **MDC (Mapped Diagnostic Context)** that propagates `traceId`, `spanId`, user identifier, and application name on every log entry. It integrates **Micrometer** for metrics and **OpenTelemetry** export, so that logs are correlatable with traces and metrics. It exposes the **Spring Boot Actuator** endpoints (health, metrics, info) in a standard and secure way.
+**Backend.** Qavo configures structured logging (JSON format) via SLF4J/Logback, automatically enriched with an **MDC (Mapped Diagnostic Context)** that propagates `traceId`, `spanId`, user identifier, and application name on every log entry. This contract is **enforced, not optional**: applications cannot disable or bypass the structured logging pipeline, and the minimum MDC fields (`traceId`, `appName`, `userId`) are always present. It integrates **Micrometer** for metrics and **OpenTelemetry** export, so that logs are correlatable with traces and metrics. It exposes the **Spring Boot Actuator** endpoints (health, metrics, info) in a standard and secure way.
+
+**Standard metrics set.** Beyond application-specific metrics, Qavo enforces a baseline set of operational metrics on every application: HTTP request latency per endpoint (p50/p95/p99), HTTP error rate (4xx and 5xx separately), JVM memory and thread pool usage, database connection pool saturation, and outbound HTTP client latency. These are configured in the core and feed directly into Grafana dashboards without per-application setup.
+
+**Trace propagation enforced.** Every inbound request receives a `traceId` (generated by the core if not already present in an incoming `traceparent` header). Every outbound HTTP call made through the Qavo HTTP client propagates the `traceId` via the W3C `traceparent` header. Every error response includes the `traceId` in the Problem Details body (§5.2). This chain is non-optional: end-to-end traceability is a core guarantee.
 
 This integrates directly with a Grafana-based observability infrastructure: Micrometer/Prometheus metrics feed the dashboards, and structured logs can be collected (e.g. Loki) and correlated via `traceId`.
 
@@ -280,8 +290,8 @@ Rather than binding to a single Identity Provider, the architecture exposes a **
 3. **Hybrid.** An application may enable local authentication and one or more external providers simultaneously (e.g. local admin accounts plus corporate SSO), all converging on the same authorization model.
 
 ```
-                ┌──────────────────────────────────────────┐
-                │      Qavo Authentication Abstraction     │
+                ┌────────────────────────────────────────────┐
+                │      Qavo Authentication Abstraction       │
                 │  (uniform SecurityContext: user, roles,    │
                 │   permissions — independent of strategy)   │
                 └───────────────┬───────────┬───────────┬────┘
@@ -303,9 +313,49 @@ Note the relationship with the plugin model (§6): the authentication *strategy*
 
 > **Security note.** Whatever the strategy, credentials and tokens are handled securely: passwords are never stored in plaintext (only strong one-way hashes), tokens are validated server-side, and account creation/credential management for external providers stays within the respective IdP. Qavo does not weaken these guarantees regardless of configuration.
 
+**Secure HTTP headers (enforced by default).** Qavo configures a strict set of HTTP security headers on every response, active from the first request with no application-side action required: `Strict-Transport-Security` (HSTS, max-age 1 year, includeSubDomains), `Content-Security-Policy` (restrictive default, overridable per application), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Permissions-Policy` disabling unnecessary browser features. Applications can tighten these headers; loosening them requires an explicit override and is discouraged.
+
+**TLS enforcement.** Qavo configures Spring to recognize that it is running behind a TLS-terminating reverse proxy (`server.forward-headers-strategy=framework`), ensuring that all generated URLs, redirects, and the HSTS header reflect the HTTPS scheme correctly. Applications must never generate `http://` absolute URLs in production.
+
+**Input sanitization strategy.** Qavo enforces a layered input sanitization approach: Bean Validation constraints are applied at the DTO boundary (declared, not optional — see §5.4); raw SQL is never permitted (all data access goes through JPA/repository abstractions); and output encoding is the responsibility of the rendering layer (Thymeleaf escapes by default on the server, Angular's template engine escapes by default on the client). There is no single "sanitize everything" filter, which is intentionally avoided as it creates false confidence — instead, the policy is enforced structurally at each layer.
+
+> **Out of scope — enterprise secrets management.** Integration with external secrets vaults (HashiCorp Vault, Azure Key Vault, AWS Secrets Manager) and application-level encryption-at-rest are intentionally excluded from the current implementation. Both are important concerns in enterprise contexts, but introducing a vault abstraction at this stage would add significant complexity — a dependency on vault infrastructure, token lifecycle management, and a pluggable secret provider interface — that exceeds the benefit for a platform of this scope. The adopted policy is: secrets are supplied via environment variables (never hardcoded), and encryption at rest is delegated to the infrastructure layer (database and disk encryption configured at the hosting level). This boundary may be revisited when a concrete application requirement justifies it.
+
 ### 5.6 Other baseline cross-cutting concerns
 
-Beyond those above, Qavo core standardizes: **internationalization (i18n)** with centralized messages and translations; **externalized configuration** (Spring profiles dev/test/prod, secrets via environment variables); **auditing** (automatic created/modified tracking via Spring Data Auditing); **pagination and filtering** with a uniform contract; **API documentation** (automatic OpenAPI generation); **CORS** (centralized, secure policy); and **health checks and readiness** (standard endpoints for orchestration).
+Beyond those above, Qavo core standardizes:
+
+**Internationalization (i18n).** Centralized message bundle management; applications provide locale-specific files following the Qavo naming convention and the core handles locale resolution and fallback.
+
+**Configuration convention.** Qavo enforces a naming convention for configuration properties: all platform parameters are under the `qavo.*` namespace, all application-specific parameters are under `app.*`. This keeps the two concerns visually and structurally separated in every `application.yml`. Spring profiles (`dev`, `test`, `prod`) are the standard mechanism for environment-specific values; secrets are always supplied via environment variables, never hardcoded in property files. A dedicated `qavo.yml` reference document lists every supported `qavo.*` property, its type, default, and override semantics.
+
+> **Out of scope — pluggable config providers.** Integration with external configuration services (Spring Cloud Config Server, AWS Parameter Store, Azure App Configuration) is intentionally excluded from the current implementation. These services add operational infrastructure (a config server to run and secure, credential management, cache invalidation) whose cost exceeds the benefit at this scale. Applications that need dynamic remote configuration can integrate Spring Cloud Config independently, without conflicting with Qavo conventions.
+
+**Feature flags.** Qavo provides a lightweight feature flag mechanism based on `@ConditionalOnProperty` and a dedicated `qavo.features.*` namespace. Flags are declared in configuration and evaluated at startup (static flags) or at request time via a `FeatureFlagService` bean (dynamic flags backed by a simple DB table or property source). This allows features to be enabled or disabled per environment without a rebuild. The mechanism is intentionally minimal — it is not a replacement for a full feature management platform (LaunchDarkly, Unleash) — but it covers the common case of environment-aware feature rollout.
+
+**Auditing.** Automatic created/modified tracking via Spring Data Auditing — `createdBy`, `createdAt`, `lastModifiedBy`, `lastModifiedAt` — populated from the active security context with no application code required.
+
+**Pagination and filtering.** Uniform request/response contract for paginated collections: `page`, `size`, `sort` query parameters on the request; a standard envelope (`content`, `totalElements`, `totalPages`, `number`) on the response. Filtering follows a consistent query parameter convention documented in the API reference.
+
+**API documentation.** Automatic OpenAPI 3 generation via springdoc-openapi, with a consistent info block (title, version, contact, license) populated from Qavo core configuration. Every application gets a Swagger UI at a standard path.
+
+**CORS.** Centralized, secure cross-origin policy configured in the core. The default policy is restrictive (same-origin only); applications explicitly declare the allowed origins for their deployment context.
+
+**Health checks and readiness.** Standard Actuator endpoints (`/actuator/health`, `/actuator/health/readiness`, `/actuator/health/liveness`) secured and exposed consistently, suitable for container orchestration probes.
+
+### 5.9 Resilience
+
+Resilient communication patterns are part of the core, not an application responsibility. Without a standard baseline, each application invents its own retry logic, chooses its own timeouts, and handles downstream failures inconsistently — the result is unpredictable behavior under load and a maintenance burden that compounds across applications. Qavo addresses this by shipping sensible defaults for the three foundational resilience patterns, all based on **Resilience4j** (the standard for Spring Boot 3.x; Hystrix is deprecated and unsupported).
+
+**Timeouts.** Every outbound HTTP call made through the Qavo HTTP client has a default timeout configured in the core (connect timeout and read timeout, both conservative defaults). Database connection acquisition also has a default pool timeout. Applications can override these per use case via `qavo.resilience.http.timeout` and `qavo.resilience.db.connection-timeout`; what they cannot do is accidentally omit a timeout entirely, which would make the application vulnerable to cascading hangs under downstream slowdowns.
+
+**Retry policy.** Transient failures on outbound HTTP calls (network blips, 503 responses, connection resets) are retried automatically with **exponential backoff and jitter**: up to 3 attempts by default, with initial interval 200ms, multiplier 2, and random jitter to avoid thundering-herd effects. Retries are not applied to non-idempotent calls (POST by default) unless the application explicitly opts in. The retry configuration is tunable per named client via `qavo.resilience.retry.*`.
+
+**Circuit breaker.** A Resilience4j circuit breaker wraps outbound HTTP clients, opening when the failure rate exceeds a configurable threshold (default: 50% over a 10-call sliding window). An open circuit fails fast — immediately returning an error without attempting the call — which prevents thread exhaustion and cascading failures. The circuit transitions to half-open after a configurable wait (default: 30 seconds) to probe recovery. Circuit breaker state is exposed as a Micrometer metric, visible in Grafana dashboards alongside the standard metrics set (§5.3). Configuration is via `qavo.resilience.circuit-breaker.*`.
+
+The three patterns compose naturally: a call first checks the circuit breaker (if open, fail fast), then attempts the call with a timeout, and on transient failure applies the retry policy. This layered behavior is wired by the Qavo HTTP client and requires no application-side code.
+
+> **Inter-service contract.** When a Qavo application calls another Qavo application, the HTTP client automatically propagates the `traceId` (§5.3) and the current authentication token (§5.5), applying the same resilience policies. The service-to-service authentication convention is: forward the caller's token (token propagation) for user-initiated flows; use a dedicated service account token for background/system flows. This convention is documented and enforced by the HTTP client configuration, not left to individual developers.
 
 ### 5.7 Theming
 
@@ -342,6 +392,18 @@ Theming is a first-class, centralized concern: a single theming engine governs *
 ```
 
 > **Backend note.** Theming is primarily a frontend concern, but Qavo allows the *active theme and the application's available custom themes* to be persisted as a user preference (via the local-auth user profile or an app setting), so a user's choice follows them across sessions and devices.
+
+### 5.10 Domain boundary guidelines
+
+Qavo does not prescribe how applications decompose their domain — that decision belongs to the application and its context. What the platform provides is a **lightweight set of guidelines** that prevent the two most common failure modes: the unstructured monolith that grows without boundaries, and the premature microservices split that adds distributed-systems complexity before it is warranted.
+
+**Default stance: modular monolith.** The recommended starting point for any Qavo-based application is a **modular monolith**: a single deployable unit whose internal structure is organized into clearly bounded modules, each owning its domain, its data, and its API surface. Modules communicate through well-defined interfaces (service boundaries, not direct repository access across modules), which preserves the option to extract a module into a separate service later if operational reasons justify it. The package convention in §4 (`api / application / domain / infrastructure`) applies within each module.
+
+**When to consider microservices.** Splitting into separate deployable services is a deliberate architectural decision, not the default. It is appropriate when: a module has significantly different scaling requirements from the rest; independent deployment cadence is operationally required; or team ownership boundaries make a shared codebase genuinely impractical. The cost — distributed tracing, network latency, eventual consistency, independent deployment pipelines — must be weighed against the benefit. Qavo's observability (§5.3) and resilience (§5.9) foundations reduce that cost, but do not eliminate it.
+
+**Module ownership.** Each module has a declared owner (a team or, for a solo project, an explicit responsibility boundary). Cross-module changes require coordination with the owning party. This applies even within a monolith: the ownership boundary is what prevents accidental coupling and makes future extraction feasible.
+
+**What Qavo enforces structurally.** The package convention and the layering rule (§4) are the only structurally enforced domain guidelines. Everything else — module granularity, service boundaries, ownership assignment — is a design decision documented in the application's own architecture notes, following these principles as guidance.
 
 ### 5.8 Mobile-first and responsive design
 
@@ -384,7 +446,7 @@ auth-login  auth-      user-mgmt      notifications   storage   ... more
    App "Portal"   →  core + theming + auth-login + auth-registration + user-mgmt
 ```
 
-**Backend.** Each plugin is its own Maven module under `info.dfri.qavo` (e.g. `qavo-auth-login`, `qavo-auth-registration`, `qavo-user-mgmt`). Adding a plugin to an application is declaring one dependency; the plugin **auto-configures itself** through Spring Boot's conditional mechanisms (`@ConditionalOnClass`, `@ConditionalOnProperty`), ships its own Flyway migrations for any tables it needs, and contributes its own routes, services, and security rules. Removing a plugin is removing the dependency — its code, tables-ownership, and endpoints leave with it.
+**Backend.** Each plugin is its own Maven module under `org.qavo` (e.g. `qavo-auth-login`, `qavo-auth-registration`, `qavo-user-mgmt`). Adding a plugin to an application is declaring one dependency; the plugin **auto-configures itself** through Spring Boot's conditional mechanisms (`@ConditionalOnClass`, `@ConditionalOnProperty`), ships its own Flyway migrations for any tables it needs, and contributes its own routes, services, and security rules. Removing a plugin is removing the dependency — its code, tables-ownership, and endpoints leave with it.
 
 **Frontend.** Each plugin is its own npm package under `@qavo` (e.g. `@qavo/auth-login`, `@qavo/auth-registration`). Plugins are imported and registered with a provider, expose lazy-loadable routes and components, and consume the same theming tokens (§5.7) so they look native to the host application with no extra styling.
 
@@ -419,7 +481,7 @@ The target experience is: *declare the Qavo version, import the core plus the pl
    <dependencyManagement>
      <dependencies>
        <dependency>
-         <groupId>info.dfri.qavo</groupId>
+         <groupId>org.qavo</groupId>
          <artifactId>qavo-bom</artifactId>
          <version>1.1.0</version>
          <type>pom</type>
@@ -431,16 +493,16 @@ The target experience is: *declare the Qavo version, import the core plus the pl
    <dependencies>
      <!-- always -->
      <dependency>
-       <groupId>info.dfri.qavo</groupId>
+       <groupId>org.qavo</groupId>
        <artifactId>qavo-starter-web</artifactId>
      </dependency>
      <!-- optional plugins, only what this app needs -->
      <dependency>
-       <groupId>info.dfri.qavo</groupId>
+       <groupId>org.qavo</groupId>
        <artifactId>qavo-auth-login</artifactId>
      </dependency>
      <dependency>
-       <groupId>info.dfri.qavo</groupId>
+       <groupId>org.qavo</groupId>
        <artifactId>qavo-auth-registration</artifactId>
      </dependency>
    </dependencies>
@@ -540,16 +602,20 @@ Qavo integrates naturally with a self-hosted infrastructure based on Docker and 
 
 | Concern | Decision | Main rationale |
 |---|---|---|
-| Project name | Qavo (repos `qavo-be`/`qavo-fe`; `info.dfri.qavo`; `@qavo`) | Verified free on the registries that matter; clean, distinctive |
+| Project name | Qavo (repos `qavo-be`/`qavo-fe`; `org.qavo`; `@qavo`) | Verified free on the registries that matter; clean, distinctive |
 | Backend | Java 21 + Spring Boot 3.x | Enterprise standard, native coverage of cross-cutting concerns, starter pattern |
 | Common BE distribution | Spring Boot Starter + BOM | Independent evolution through versioning |
 | Frontend | Angular | Complete, opinionated framework: imposed standardization, aligned with the requirement |
 | Common FE distribution | Versioned npm packages | Same independent-evolution model as the backend |
 | BE↔FE contract | OpenAPI + generated client | Single source of truth, mismatches at compile time |
-| Security | Pluggable: local DB (default) + OIDC/OAuth2 (Entra, Keycloak, any) | No lock-in to a single IdP; works out of the box |
+| Security | Pluggable auth + secure headers + TLS + input sanitization — all enforced by default | Secure by default; no opt-in required; Vault/encryption-at-rest deferred (out of scope) |
 | Theming | Centralized token engine; built-in light + dark; custom themes per app | Full visual coverage, runtime switching, versioned token contract |
 | UI / responsiveness | Mobile-first, responsive across all devices from one codebase | Lean base experience, ergonomic on every device, no separate mobile build |
 | Modularity | Core + independently versioned plugins; modularity for distribution, config for behavior | Small core, minimal footprint/attack surface, independent evolution per capability |
+| API versioning | Path-based (`/api/v{n}/`), `Deprecation`/`Sunset` headers, enforced by core | Consistent across apps; no API sprawl |
+| Resilience | Resilience4j: timeout + retry + circuit breaker in core, sensible defaults | Consistent failure behavior; no per-app reinvention |
+| Config convention | `qavo.*` / `app.*` namespaces; feature flags via `qavo.features.*` | Runtime control without rebuild; no config sprawl |
+| Domain guidelines | Modular monolith as default; microservices as explicit decision | Prevents unstructured growth; preserves future options |
 | Error format | RFC 9457 Problem Details | Standard, consistent, machine-readable |
 | Observability | Micrometer + OpenTelemetry + Grafana | Log/metric/trace correlation via traceId |
 | Versioning | Semantic Versioning + BOM | Clear contract, controlled per-module upgrades |
@@ -561,7 +627,7 @@ Qavo integrates naturally with a self-hosted infrastructure based on Docker and 
 
 ## 11. Suggested next steps
 
-1. **Claim the names early.** Open `qavo-be` and `qavo-fe` on GitHub, publish placeholder `@qavo/core@0.0.0` on npm, and start the Maven Central namespace verification for `info.dfri.qavo` (DNS TXT on `dfri.info`) — it is the bottleneck for the first release.
+1. **Claim the names early.** Open `qavo-be` and `qavo-fe` on GitHub, publish placeholder `@qavo/core@0.0.0` on npm, and start the Maven Central namespace verification for `org.qavo` (DNS TXT on `qavo.org`) — it is the bottleneck for the first release.
 2. **Define the scope of v1.0** of the core: highest-impact concerns first (local-auth security, error handling, logging, theming with the two built-in themes), with the first plugins (`auth-login`, `auth-registration`) following closely.
 3. **Set up the publishing pipeline:** license, contributing/security policies, and CI configured to publish signed artifacts to Maven Central and npm.
 4. **Build the "reference app":** a minimal application using core + theming + a couple of plugins, as a test bed and onboarding model.
@@ -588,4 +654,4 @@ Qavo is **designed and built with the assistance of artificial intelligence.** T
 
 ---
 
-*Qavo reference architecture — version 1.2. To be kept aligned with the evolution of the platform.*
+*Qavo reference architecture — version 1.3. To be kept aligned with the evolution of the platform.*

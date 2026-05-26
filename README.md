@@ -34,6 +34,9 @@ Qavo is not a single application — it is a **shared platform** that multiple a
 - **Centralized cross-cutting concerns** — security, errors, logging, validation, theming handled once, inherited everywhere.
 - **Plugin model** — import only what you need; each capability is an independently versioned module.
 - **Pluggable authentication** — local DB auth out of the box; drop-in support for any OIDC/OAuth2 provider (Entra ID, Keycloak, and others).
+- **Secure by default** — secure HTTP headers, TLS enforcement, and input sanitization active from the first request, with no opt-in required.
+- **Resilience built in** — timeout, retry with backoff, and circuit breaker (Resilience4j) enforced in core with sensible defaults.
+- **API versioning enforced** — path-based versioning convention and standard deprecation signals across all applications.
 - **Mobile-first, responsive** — UI layer designed mobile-first, renders correctly on all devices from a single codebase.
 - **Built-in theming** — light and dark themes out of the box; applications can define custom themes via design tokens.
 - **Independent evolution** — applications upgrade Qavo on their own schedule; no forced lockstep.
@@ -133,6 +136,7 @@ Full documentation is also available at **[qavo.org](https://qavo.org)** (GitHub
 | `qavo-security` | Authentication abstraction: local DB + OIDC/OAuth2 |
 | `qavo-auth-login` | Plugin: login endpoint and session management |
 | `qavo-auth-registration` | Plugin: user self-registration |
+| `qavo-resilience` | Resilience defaults: timeout, retry, circuit breaker (Resilience4j) |
 
 ### Frontend (`@qavo`)
 
@@ -144,6 +148,7 @@ Full documentation is also available at **[qavo.org](https://qavo.org)** (GitHub
 | `@qavo/http` | HTTP interceptors: auth token injection, error handling |
 | `@qavo/auth-login` | Plugin: login UI and flow |
 | `@qavo/auth-registration` | Plugin: registration UI and flow |
+| `@qavo/http` | HTTP client with resilience, auth propagation, and trace forwarding |
 
 ---
 
